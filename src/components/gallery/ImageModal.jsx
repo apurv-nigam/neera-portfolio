@@ -98,7 +98,7 @@ const ImageModal = ({ images, currentIndex, initialInnerSlide = 0, onClose }) =>
   };
 
   // Share handler
-  const handleShare = async (e) => {
+  const handleShare = (e) => {
     e.stopPropagation();
     const artworkId = image.id;
     if (!artworkId) return;
@@ -106,22 +106,25 @@ const ImageModal = ({ images, currentIndex, initialInnerSlide = 0, onClose }) =>
     const viewParam = innerSlide === 1 ? '?view=original' : '';
     const shareUrl = `${window.location.origin}/artwork/${artworkId}${viewParam}`;
 
+    // navigator.share must be called synchronously from user gesture
     if (navigator.share) {
-      try {
-        await navigator.share({
-          title: image.title,
-          text: `Check out "${image.title}" by Neera Nigam`,
-          url: shareUrl,
-        });
-        return;
-      } catch {
-        // Share cancelled or failed — fall through to copy
-      }
+      navigator.share({
+        title: image.title,
+        text: `Check out "${image.title}" by Neera Nigam`,
+        url: shareUrl,
+      }).catch((err) => {
+        // Only fallback to copy if it wasn't a user cancel
+        if (err.name !== 'AbortError') {
+          copyToClipboard(shareUrl);
+          setShareConfirm(true);
+          setTimeout(() => setShareConfirm(false), 2500);
+        }
+      });
+    } else {
+      copyToClipboard(shareUrl);
+      setShareConfirm(true);
+      setTimeout(() => setShareConfirm(false), 2500);
     }
-
-    await copyToClipboard(shareUrl);
-    setShareConfirm(true);
-    setTimeout(() => setShareConfirm(false), 2500);
   };
 
   // Bottom sheet touch handlers

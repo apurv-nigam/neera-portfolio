@@ -78,6 +78,25 @@ const ImageModal = ({ images, currentIndex, initialInnerSlide = 0, onClose }) =>
     };
   }, [onClose, hasOriginal, innerSlide]);
 
+  // Copy to clipboard with fallback for older browsers
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fallback: create a temporary textarea
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return true;
+    }
+  };
+
   // Share handler
   const handleShare = async (e) => {
     e.stopPropagation();
@@ -86,32 +105,23 @@ const ImageModal = ({ images, currentIndex, initialInnerSlide = 0, onClose }) =>
 
     const viewParam = innerSlide === 1 ? '?view=original' : '';
     const shareUrl = `${window.location.origin}/artwork/${artworkId}${viewParam}`;
-    const shareData = {
-      title: image.title,
-      text: `Check out "${image.title}" by Neera Nigam`,
-      url: shareUrl,
-    };
 
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-      } else {
-        await navigator.clipboard.writeText(shareUrl);
-        setShareConfirm(true);
-        setTimeout(() => setShareConfirm(false), 2000);
-      }
-    } catch (err) {
-      // User cancelled share or clipboard failed — ignore
-      if (err.name !== 'AbortError') {
-        try {
-          await navigator.clipboard.writeText(shareUrl);
-          setShareConfirm(true);
-          setTimeout(() => setShareConfirm(false), 2000);
-        } catch {
-          // silently fail
-        }
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: image.title,
+          text: `Check out "${image.title}" by Neera Nigam`,
+          url: shareUrl,
+        });
+        return;
+      } catch {
+        // Share cancelled or failed — fall through to copy
       }
     }
+
+    await copyToClipboard(shareUrl);
+    setShareConfirm(true);
+    setTimeout(() => setShareConfirm(false), 2500);
   };
 
   // Bottom sheet touch handlers
@@ -171,12 +181,22 @@ const ImageModal = ({ images, currentIndex, initialInnerSlide = 0, onClose }) =>
           `}
           {...swipeHandlers}
         >
-          {/* Top buttons */}
-          <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
+          {/* "Link copied" toast */}
+          {shareConfirm && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 bg-white text-warm-gray-800 px-4 py-2 rounded-full shadow-lg text-sm font-medium flex items-center gap-2 animate-fadeIn">
+              <Check className="w-4 h-4 text-green-500" /> Link copied!
+            </div>
+          )}
+
+          {/* Top buttons — onTouchStart stopPropagation prevents swipe handler from eating taps */}
+          <div
+            className="absolute top-4 right-4 flex items-center gap-2 z-20"
+            onTouchStart={(e) => e.stopPropagation()}
+          >
             {image.id && (
               <button
                 onClick={handleShare}
-                className="p-2 rounded-full bg-black/50 md:bg-white md:shadow-lg hover:bg-black/70 md:hover:bg-warm-gray-100 transition-colors"
+                className="p-3 rounded-full bg-black/50 md:bg-white md:shadow-lg hover:bg-black/70 md:hover:bg-warm-gray-100 transition-colors"
                 aria-label="Share artwork"
               >
                 {shareConfirm ? (
@@ -188,7 +208,7 @@ const ImageModal = ({ images, currentIndex, initialInnerSlide = 0, onClose }) =>
             )}
             <button
               onClick={onClose}
-              className="p-2 rounded-full bg-black/50 md:bg-white md:shadow-lg hover:bg-black/70 md:hover:bg-warm-gray-100 transition-colors"
+              className="p-3 rounded-full bg-black/50 md:bg-white md:shadow-lg hover:bg-black/70 md:hover:bg-warm-gray-100 transition-colors"
               aria-label="Close modal"
             >
               <X className="w-6 h-6 text-white md:text-warm-gray-800" />

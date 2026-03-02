@@ -1,18 +1,19 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { ArrowLeft, ArrowRight, X, ChevronUp } from "lucide-react";
+import { ArrowLeft, ArrowRight, X, ChevronUp, Share2, Check } from "lucide-react";
 import { useSwipe } from "../../hooks/useSwipe";
 
 const PEEK_HEIGHT = 72;
 const EXPANDED_HEIGHT = 280;
 const DRAG_THRESHOLD = 40;
 
-const ImageModal = ({ images, currentIndex, onClose }) => {
+const ImageModal = ({ images, currentIndex, initialInnerSlide = 0, onClose }) => {
   const [index, setIndex] = useState(currentIndex);
   const [visible, setVisible] = useState(false);
   const [sheetExpanded, setSheetExpanded] = useState(false);
+  const [shareConfirm, setShareConfirm] = useState(false);
 
   // Inner carousel: 0 = artwork, 1 = original
-  const [innerSlide, setInnerSlide] = useState(0);
+  const [innerSlide, setInnerSlide] = useState(initialInnerSlide);
 
   // Bottom sheet drag state
   const sheetRef = useRef(null);
@@ -22,6 +23,7 @@ const ImageModal = ({ images, currentIndex, onClose }) => {
 
   const image = images[index];
   const hasOriginal = !!image.originalUrl;
+  const isSingleArtwork = images.length === 1;
 
   // Reset inner slide when changing artwork
   useEffect(() => {
@@ -35,7 +37,7 @@ const ImageModal = ({ images, currentIndex, onClose }) => {
   const handleSwipeLeft = () => {
     if (hasOriginal && innerSlide === 0) {
       setInnerSlide(1);
-    } else {
+    } else if (!isSingleArtwork) {
       goNext();
     }
   };
@@ -43,7 +45,7 @@ const ImageModal = ({ images, currentIndex, onClose }) => {
   const handleSwipeRight = () => {
     if (hasOriginal && innerSlide === 1) {
       setInnerSlide(0);
-    } else {
+    } else if (!isSingleArtwork) {
       goPrev();
     }
   };
@@ -75,6 +77,42 @@ const ImageModal = ({ images, currentIndex, onClose }) => {
       window.removeEventListener("keydown", handleKey);
     };
   }, [onClose, hasOriginal, innerSlide]);
+
+  // Share handler
+  const handleShare = async (e) => {
+    e.stopPropagation();
+    const artworkId = image.id;
+    if (!artworkId) return;
+
+    const viewParam = innerSlide === 1 ? '?view=original' : '';
+    const shareUrl = `${window.location.origin}/artwork/${artworkId}${viewParam}`;
+    const shareData = {
+      title: image.title,
+      text: `Check out "${image.title}" by Neera Nigam`,
+      url: shareUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        setShareConfirm(true);
+        setTimeout(() => setShareConfirm(false), 2000);
+      }
+    } catch (err) {
+      // User cancelled share or clipboard failed — ignore
+      if (err.name !== 'AbortError') {
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          setShareConfirm(true);
+          setTimeout(() => setShareConfirm(false), 2000);
+        } catch {
+          // silently fail
+        }
+      }
+    }
+  };
 
   // Bottom sheet touch handlers
   const onSheetTouchStart = useCallback((e) => {
@@ -133,14 +171,29 @@ const ImageModal = ({ images, currentIndex, onClose }) => {
           `}
           {...swipeHandlers}
         >
-          {/* Close Button */}
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-full bg-black/50 md:bg-white md:shadow-lg hover:bg-black/70 md:hover:bg-warm-gray-100 transition-colors z-20"
-            aria-label="Close modal"
-          >
-            <X className="w-6 h-6 text-white md:text-warm-gray-800" />
-          </button>
+          {/* Top buttons */}
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
+            {image.id && (
+              <button
+                onClick={handleShare}
+                className="p-2 rounded-full bg-black/50 md:bg-white md:shadow-lg hover:bg-black/70 md:hover:bg-warm-gray-100 transition-colors"
+                aria-label="Share artwork"
+              >
+                {shareConfirm ? (
+                  <Check className="w-5 h-5 text-green-400 md:text-green-500" />
+                ) : (
+                  <Share2 className="w-5 h-5 text-white md:text-warm-gray-800" />
+                )}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full bg-black/50 md:bg-white md:shadow-lg hover:bg-black/70 md:hover:bg-warm-gray-100 transition-colors"
+              aria-label="Close modal"
+            >
+              <X className="w-6 h-6 text-white md:text-warm-gray-800" />
+            </button>
+          </div>
 
           {/* Image Container */}
           <div className="flex-1 relative flex items-center justify-center md:h-[75vh] md:flex-none bg-black md:bg-warm-gray-100">
@@ -162,15 +215,15 @@ const ImageModal = ({ images, currentIndex, onClose }) => {
               <div className="absolute bottom-28 md:bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
                 <button
                   onClick={(e) => { e.stopPropagation(); setInnerSlide(0); }}
-                  className={`w-2 h-2 rounded-full transition-all ${
-                    innerSlide === 0 ? "bg-white w-6" : "bg-white/50"
+                  className={`h-2 rounded-full transition-all ${
+                    innerSlide === 0 ? "bg-white w-6" : "bg-white/50 w-2"
                   }`}
                   aria-label="Show artwork"
                 />
                 <button
                   onClick={(e) => { e.stopPropagation(); setInnerSlide(1); }}
-                  className={`w-2 h-2 rounded-full transition-all ${
-                    innerSlide === 1 ? "bg-white w-6" : "bg-white/50"
+                  className={`h-2 rounded-full transition-all ${
+                    innerSlide === 1 ? "bg-white w-6" : "bg-white/50 w-2"
                   }`}
                   aria-label="Show original"
                 />
@@ -178,27 +231,31 @@ const ImageModal = ({ images, currentIndex, onClose }) => {
             )}
 
             {/* Navigation Arrows */}
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center justify-between px-3 md:px-4">
-              <button
-                onClick={(e) => { e.stopPropagation(); goPrev(); }}
-                className="p-2 md:p-3 rounded-full bg-black/40 md:bg-white/90 hover:bg-black/60 md:hover:bg-white shadow-lg transition-all"
-                aria-label="Previous image"
-              >
-                <ArrowLeft className="w-5 h-5 md:w-6 md:h-6 text-white md:text-warm-gray-800" />
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); goNext(); }}
-                className="p-2 md:p-3 rounded-full bg-black/40 md:bg-white/90 hover:bg-black/60 md:hover:bg-white shadow-lg transition-all"
-                aria-label="Next image"
-              >
-                <ArrowRight className="w-5 h-5 md:w-6 md:h-6 text-white md:text-warm-gray-800" />
-              </button>
-            </div>
+            {!isSingleArtwork && (
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center justify-between px-3 md:px-4">
+                <button
+                  onClick={(e) => { e.stopPropagation(); goPrev(); }}
+                  className="p-2 md:p-3 rounded-full bg-black/40 md:bg-white/90 hover:bg-black/60 md:hover:bg-white shadow-lg transition-all"
+                  aria-label="Previous image"
+                >
+                  <ArrowLeft className="w-5 h-5 md:w-6 md:h-6 text-white md:text-warm-gray-800" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); goNext(); }}
+                  className="p-2 md:p-3 rounded-full bg-black/40 md:bg-white/90 hover:bg-black/60 md:hover:bg-white shadow-lg transition-all"
+                  aria-label="Next image"
+                >
+                  <ArrowRight className="w-5 h-5 md:w-6 md:h-6 text-white md:text-warm-gray-800" />
+                </button>
+              </div>
+            )}
 
             {/* Image Counter */}
-            <div className="absolute bottom-20 md:bottom-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-4 py-1.5 rounded-full text-sm z-10">
-              {index + 1} / {images.length}
-            </div>
+            {!isSingleArtwork && (
+              <div className="absolute bottom-20 md:bottom-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-4 py-1.5 rounded-full text-sm z-10">
+                {index + 1} / {images.length}
+              </div>
+            )}
           </div>
 
           {/* Mobile Bottom Sheet */}

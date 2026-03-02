@@ -1,25 +1,29 @@
 import { useState, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
+import { useArtworks } from "../../hooks/useArtworks";
 import { getFeaturedArtworks } from "../../data/artworks";
 
-const featured = getFeaturedArtworks();
+const staticFeatured = getFeaturedArtworks();
 
 const HeroSection = () => {
+  const { artworks: dbFeatured, loading } = useArtworks("featured");
+  const featured = dbFeatured.length > 0 ? dbFeatured : staticFeatured;
   const [current, setCurrent] = useState(0);
 
   useEffect(() => {
+    if (featured.length === 0) return;
     const timer = setInterval(() => {
       setCurrent((prev) => (prev + 1) % featured.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [featured.length]);
 
   return (
     <section id="home" className="relative h-screen overflow-hidden">
       {/* Background Slideshow */}
       {featured.map((artwork, i) => (
         <div
-          key={artwork.url}
+          key={artwork.url || artwork.id}
           className={`absolute inset-0 transition-opacity duration-1000 ${
             i === current ? "opacity-100" : "opacity-0"
           }`}
@@ -31,6 +35,11 @@ const HeroSection = () => {
           />
         </div>
       ))}
+
+      {/* Loading placeholder */}
+      {loading && featured.length === 0 && (
+        <div className="absolute inset-0 bg-warm-gray-800" />
+      )}
 
       {/* Dark Overlay */}
       <div className="absolute inset-0 bg-black/50" />

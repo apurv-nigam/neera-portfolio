@@ -1,20 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useArtworks } from "../../hooks/useArtworks";
 import { getAllGalleryArtworks } from "../../data/artworks";
 import FilterBar from "../gallery/FilterBar";
 import ImageCard from "../gallery/ImageCard";
 import ImageModal from "../gallery/ImageModal";
 import AnimateOnScroll from "../ui/AnimateOnScroll";
 
-const allArtworks = getAllGalleryArtworks();
+const staticArtworks = getAllGalleryArtworks();
 
 const GallerySection = () => {
   const [filter, setFilter] = useState("all");
   const [modalIndex, setModalIndex] = useState(null);
 
-  const filtered =
+  const { artworks: dbArtworks, loading, error } = useArtworks(filter);
+
+  // Use DB artworks if available, otherwise fallback to static
+  const artworks = dbArtworks.length > 0 ? dbArtworks : (
     filter === "all"
-      ? allArtworks
-      : allArtworks.filter((a) => a.category === filter);
+      ? staticArtworks
+      : staticArtworks.filter((a) => a.category === filter)
+  );
+
+  // Reset modal when filter changes
+  useEffect(() => {
+    setModalIndex(null);
+  }, [filter]);
 
   return (
     <section id="gallery" className="py-20 md:py-28 px-6 md:px-12">
@@ -38,21 +48,35 @@ const GallerySection = () => {
           </div>
         </AnimateOnScroll>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((artwork, i) => (
-            <ImageCard
-              key={artwork.url}
-              artwork={artwork}
-              index={i}
-              onClick={() => setModalIndex(i)}
-            />
-          ))}
-        </div>
+        {error && (
+          <div className="text-center py-8 text-red-500 text-sm">
+            Failed to load artworks. Showing cached data.
+          </div>
+        )}
+
+        {loading && dbArtworks.length === 0 && artworks === staticArtworks ? null : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {artworks.map((artwork, i) => (
+              <ImageCard
+                key={artwork.id || artwork.url}
+                artwork={artwork}
+                index={i}
+                onClick={() => setModalIndex(i)}
+              />
+            ))}
+          </div>
+        )}
+
+        {artworks.length === 0 && !loading && (
+          <div className="text-center py-12 text-warm-gray-400">
+            No artworks found.
+          </div>
+        )}
       </div>
 
       {modalIndex !== null && (
         <ImageModal
-          images={filtered}
+          images={artworks}
           currentIndex={modalIndex}
           onClose={() => setModalIndex(null)}
         />

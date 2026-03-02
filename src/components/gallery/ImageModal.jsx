@@ -11,6 +11,9 @@ const ImageModal = ({ images, currentIndex, onClose }) => {
   const [visible, setVisible] = useState(false);
   const [sheetExpanded, setSheetExpanded] = useState(false);
 
+  // Inner carousel: 0 = artwork, 1 = original
+  const [innerSlide, setInnerSlide] = useState(0);
+
   // Bottom sheet drag state
   const sheetRef = useRef(null);
   const dragStartY = useRef(null);
@@ -18,11 +21,34 @@ const ImageModal = ({ images, currentIndex, onClose }) => {
   const isDraggingSheet = useRef(false);
 
   const image = images[index];
+  const hasOriginal = !!image.originalUrl;
+
+  // Reset inner slide when changing artwork
+  useEffect(() => {
+    setInnerSlide(0);
+  }, [index]);
 
   const goNext = () => { setIndex((i) => (i + 1) % images.length); setSheetExpanded(false); };
   const goPrev = () => { setIndex((i) => (i - 1 + images.length) % images.length); setSheetExpanded(false); };
 
-  const swipeHandlers = useSwipe(goNext, goPrev);
+  // Swipe handler: if artwork has original, swipe toggles inner carousel first
+  const handleSwipeLeft = () => {
+    if (hasOriginal && innerSlide === 0) {
+      setInnerSlide(1);
+    } else {
+      goNext();
+    }
+  };
+
+  const handleSwipeRight = () => {
+    if (hasOriginal && innerSlide === 1) {
+      setInnerSlide(0);
+    } else {
+      goPrev();
+    }
+  };
+
+  const swipeHandlers = useSwipe(handleSwipeLeft, handleSwipeRight);
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true));
@@ -31,8 +57,8 @@ const ImageModal = ({ images, currentIndex, onClose }) => {
   useEffect(() => {
     const handleKey = (e) => {
       if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft") goPrev();
-      if (e.key === "ArrowRight") goNext();
+      if (e.key === "ArrowLeft") handleSwipeRight();
+      if (e.key === "ArrowRight") handleSwipeLeft();
     };
 
     window.addEventListener("keydown", handleKey);
@@ -48,7 +74,7 @@ const ImageModal = ({ images, currentIndex, onClose }) => {
       window.scrollTo(0, scrollY);
       window.removeEventListener("keydown", handleKey);
     };
-  }, [onClose]);
+  }, [onClose, hasOriginal, innerSlide]);
 
   // Bottom sheet touch handlers
   const onSheetTouchStart = useCallback((e) => {
@@ -85,6 +111,9 @@ const ImageModal = ({ images, currentIndex, onClose }) => {
     if (e.target === e.currentTarget) onClose();
   };
 
+  const currentImageUrl = innerSlide === 0 ? image.url : image.originalUrl;
+  const currentLabel = innerSlide === 0 ? "Artwork" : "Original";
+
   return (
     <div
       className={`fixed inset-0 z-50 transition-opacity duration-300 ${
@@ -116,10 +145,37 @@ const ImageModal = ({ images, currentIndex, onClose }) => {
           {/* Image Container */}
           <div className="flex-1 relative flex items-center justify-center md:h-[75vh] md:flex-none bg-black md:bg-warm-gray-100">
             <img
-              src={image.url}
-              alt={image.title}
-              className="max-w-full max-h-full object-contain"
+              src={currentImageUrl}
+              alt={`${image.title} - ${currentLabel}`}
+              className="max-w-full max-h-full object-contain transition-opacity duration-300"
             />
+
+            {/* Inner carousel label */}
+            {hasOriginal && (
+              <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-1.5 rounded-full text-sm font-medium z-10">
+                {currentLabel}
+              </div>
+            )}
+
+            {/* Dot indicators for inner carousel */}
+            {hasOriginal && (
+              <div className="absolute bottom-28 md:bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setInnerSlide(0); }}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    innerSlide === 0 ? "bg-white w-6" : "bg-white/50"
+                  }`}
+                  aria-label="Show artwork"
+                />
+                <button
+                  onClick={(e) => { e.stopPropagation(); setInnerSlide(1); }}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    innerSlide === 1 ? "bg-white w-6" : "bg-white/50"
+                  }`}
+                  aria-label="Show original"
+                />
+              </div>
+            )}
 
             {/* Navigation Arrows */}
             <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center justify-between px-3 md:px-4">

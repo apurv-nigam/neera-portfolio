@@ -1,20 +1,32 @@
-import Navbar from "./components/layout/Navbar";
-import HeroSection from "./components/sections/HeroSection";
-import GallerySection from "./components/sections/GallerySection";
-import AboutSection from "./components/sections/AboutSection";
-import ContactSection from "./components/sections/ContactSection";
-import Footer from "./components/layout/Footer";
+import { Routes, Route } from 'react-router-dom';
+import PublicPage from './pages/PublicPage';
+import AdminPage from './pages/AdminPage';
+import MigratePage from './pages/MigratePage';
+import LoginForm from './components/admin/LoginForm';
+import ProtectedRoute from './components/admin/ProtectedRoute';
 
 function App() {
   return (
-    <>
-      <Navbar />
-      <HeroSection />
-      <GallerySection />
-      <AboutSection />
-      <ContactSection />
-      <Footer />
-    </>
+    <Routes>
+      <Route path="/" element={<PublicPage />} />
+      <Route path="/admin/login" element={<LoginForm />} />
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <AdminPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/migrate"
+        element={
+          <ProtectedRoute>
+            <MigratePage />
+          </ProtectedRoute>
+        }
+      />
+    </Routes>
   );
 }
 
